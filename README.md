@@ -6,7 +6,7 @@ It runs once every hour, change 60 to a different amount on line 62 if needed.
 
 -Change values with your own Halo API & Instance
 
--Deploy the application with Visual Studio Community to a Azure Function App (consumption plan is ok).
+-Deploy SyncAssetsTags.cs with Visual Studio Community to a Azure Function App (consumption plan is ok).
 
 -Enjoy the search results!
 
