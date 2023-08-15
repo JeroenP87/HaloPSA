@@ -3,27 +3,22 @@ using System.Collections.Generic;
 using System.Net.Http.Headers;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Host;
-using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs.Extensions.Http;
 using System.Linq;
 using System.Text;
+using System.Net;
+using System.Xml.Linq;
 
 namespace SyncAssetTag
 {
-
     public class SyncAssetsTags
     {
         static HttpClient client = new HttpClient();
 
         static Token accessToken { get; set; }
 
-        static string apiUrl = "https:///api/";
+        static string apiUrl = "https://instance.halopsa.com/api/";
         internal class Token
         {
             [JsonProperty("access_token")]
@@ -40,7 +35,7 @@ namespace SyncAssetTag
         }
         public static async Task GetToken()
         {
-            string baseAddress = "https:///auth/token";
+            string baseAddress = "https://instance.halopsa.com/auth/token";
             client = new HttpClient();
             var form = new Dictionary<string, string>
                 {
@@ -57,11 +52,11 @@ namespace SyncAssetTag
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tok.AccessToken);
         }
 
-
-        [FunctionName("SyncAssetsTags")]
-        public async Task RunAsync([TimerTrigger("0 */60 * * * *")] TimerInfo myTimer, ILogger log)
+        [STAThread]
+        static async Task Main()
         {
-            log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
+            Console.WriteLine($"Sync executed at: {DateTime.Now}");
+            
             await GetToken();
 
             await SyncAssets();
@@ -139,28 +134,39 @@ namespace SyncAssetTag
                         jarray.Add(jobject);
 
                         await httphaloPostAsync("Asset", jarray);
-                    }               
+                    }
                 }
                 i++;
             }
         }
-        
+
 
         public static async Task<string> httphaloGetAsync(string api)
         {
-            string result = "";
-            try
+            while (true)
             {
-                HttpResponseMessage response = await client.GetAsync(apiUrl + api);
-                response.EnsureSuccessStatusCode();
-                result = await response.Content.ReadAsStringAsync();
-            }
+                string result = "";
+                try
+                {
+                    HttpResponseMessage response = await client.GetAsync(apiUrl + api);
+                    if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                    {
+                        // Retry after the specified number of seconds
+                        int retryAfterSeconds = 60;
+                        await Task.Delay(retryAfterSeconds * 1000);
+                        continue;
+                    }
 
-            catch (Exception ex)
-            {
-                Console.WriteLine($"{ex.Message}");
+                    response.EnsureSuccessStatusCode();
+                    result = await response.Content.ReadAsStringAsync();
+
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"{ex.Message}");
+                }
+                return result;
             }
-            return result;
         }
 
         public static async Task<string> httpHaloGetPage(string api, int pagenumber)
